@@ -223,10 +223,10 @@ if uploaded_file is not None and models is not None:
     if processing_steps:
         col1, col2 = st.columns(2)
         with col1:
-            st.image(image, caption='Gambar MRI Asli', use_column_width=300)
+            st.image(image, caption='Gambar MRI Asli', width=300)
         with col2:
             final_processed_key = '5. Unsharp Masked'
-            st.image(processing_steps[final_processed_key], caption=f'Gambar Setelah Pra-pemrosesan', use_column_width=300)
+            st.image(processing_steps[final_processed_key], caption=f'Gambar Setelah Pra-pemrosesan', width=300)
     else:
         st.image(image, caption='Gambar MRI Asli', width=300)
 
