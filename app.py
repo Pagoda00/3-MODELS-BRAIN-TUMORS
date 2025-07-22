@@ -139,12 +139,31 @@ TUMOR_INFO = {
 # --- UI Aplikasi Utama ---
 models = load_models()
 
-st.title("🧠 Deteksi Tumor Otak Berbasis MRI (Multi-Model)")
+# --- PERUBAHAN: Menambahkan Logo di Header ---
+col_logo1, col_logo2 = st.columns([1, 4]) # Membuat kolom: 1 bagian untuk logo, 4 bagian untuk judul
+
+with col_logo1:
+    # Menggunakan kolom untuk menempatkan logo berdampingan
+    logo_col1, logo_col2 = st.columns(2)
+    try:
+        with logo_col1:
+            st.image("logo_itera.jpg", width=100)
+        with logo_col2:
+            st.image("logo_sainsdata.png", width=100)
+    except Exception as e:
+        st.warning(f"Logo tidak dapat dimuat. Pastikan file 'logo_itera.jpg' dan 'logo_sainsdata.png' ada di folder yang sama.")
+
+with col_logo2:
+    st.title("🧠 Deteksi Tumor Otak Berbasis MRI")
+    st.markdown(
+        """
+        🤓**Author:** Muhammad Kaisar Firdaus  
+        🏢*Program Studi Sains Data, Fakultas Sains, Institut Teknologi Sumatera*
+        """
+    )
+
 st.markdown(
     """
-    🤓**Author:** Muhammad Kaisar Firdaus  
-    🏢*Program Studi Sains Data, Fakultas Sains, Institut Teknologi Sumatera*
-    
     Website ini merupakan hasil penelitian skripsi S1 oleh author. Aplikasi ini memungkinkan perbandingan tiga model *Deep Learning* untuk deteksi tumor otak.
     """
 )
