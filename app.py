@@ -13,34 +13,42 @@ st.set_page_config(
     page_title="Brain Tumor AI Detector",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="expanded",
 )
 
 # --- CSS Kustom untuk Tampilan Modern ---
 st.markdown("""
 <style>
+    /* Mengurangi padding atas dari halaman utama */
+    .main .block-container {
+        padding-top: 2rem;
+    }
     /* Gaya untuk container/kartu */
     .custom-container {
         border-radius: 15px;
-        padding: 20px;
-        background-color: #262730; /* Warna latar belakang kartu */
+        padding: 1.5rem;
+        background-color: #262730;
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
         transition: 0.3s;
         margin-bottom: 20px;
+        border: 1px solid #444;
     }
     .custom-container:hover {
         box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
     }
     /* Gaya untuk header di dalam kartu */
     .custom-header {
-        font-size: 24px;
+        font-size: 22px;
         font-weight: bold;
         color: #1DB954; /* Warna hijau Spotify-like */
         margin-bottom: 10px;
     }
+    /* Gaya untuk sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #191414; /* Warna latar belakang sidebar */
+    }
 </style>
 """, unsafe_allow_html=True)
-
 
 # --- Kamus Informasi Model ---
 MODEL_INFO = {
@@ -62,20 +70,19 @@ MODEL_INFO = {
 @st.cache_resource
 def load_models():
     models = {}
-    with st.spinner("Mohon tunggu, sedang mempersiapkan model... Ini hanya dilakukan sekali."):
+    with st.spinner("Mempersiapkan model AI... Ini hanya dilakukan sekali."):
         for model_name, info in MODEL_INFO.items():
             model_path = info["path"]
             if not os.path.exists(model_path):
-                st.info(f"Mempersiapkan {model_name}...")
                 try:
-                    gdown.download(id=info["gdrive_id"], output=model_path, quiet=False)
+                    gdown.download(id=info["gdrive_id"], output=model_path, quiet=True)
                 except Exception as e:
                     st.error(f"Gagal mengunduh {model_name}: {e}")
                     return None
     try:
         for model_name, info in MODEL_INFO.items():
             models[model_name] = tf.keras.models.load_model(info["path"])
-        st.success("Semua model berhasil dimuat! 😉")
+        st.sidebar.success("Semua model berhasil dimuat! 😉")
         return models
     except Exception as e:
         st.error(f"Error saat memuat model dari file lokal: {e}")
@@ -141,73 +148,66 @@ TUMOR_INFO = {
     "Tanpa Tumor": "Hasil pemindaian tidak menunjukkan adanya tanda-tanda tumor otak yang jelas. Namun, konsultasi dengan ahli medis tetap disarankan untuk konfirmasi."
 }
 
-# --- UI Aplikasi Utama ---
-models = load_models()
-
-# --- HEADER DENGAN LOGO ---
-col_logo1, col_logo_mid, col_logo2 = st.columns([1, 4, 1])
-with col_logo1:
-    logo_col1, logo_col2 = st.columns(2)
+# --- UI Sidebar ---
+with st.sidebar:
+    st.title("Pengaturan")
+    st.markdown("---")
+    
+    # Menampilkan logo
     try:
-        with logo_col1:
-            st.image("logo_itera.jpg", width=100)
-        with logo_col2:
-            st.image("logo_sainsdata.png", width=100)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image("logo_itera.jpg", use_column_width=True)
+        with col2:
+            st.image("logo_sainsdata.png", use_column_width=True)
     except Exception:
         st.warning("Logo tidak dapat dimuat.")
-with col_logo_mid:
-    st.title("🧠 Deteksi Tumor Otak Berbasis MRI")
-    st.markdown("**Oleh: Muhammad Kaisar Firdaus** | *Sains Data, Institut Teknologi Sumatera*")
+    
+    st.markdown("**Oleh: Muhammad Kaisar Firdaus**")
+    st.caption("*Program Studi Sains Data, Institut Teknologi Sumatera*")
+    st.markdown("---")
 
+    models = load_models()
+    
+    st.header("1. Pilih Model")
+    with st.expander("ℹ️ **Penjelasan Model**", expanded=True):
+        st.info("📦 **Model Dasar**")
+        st.markdown("Menggunakan gambar MRI asli. Cepat, namun akurasi bisa lebih rendah pada gambar berkontras rendah.")
+        st.info("✨ **Model dengan AHE**")
+        st.markdown("Meningkatkan kontras gambar secara global. Memperjelas fitur, namun bisa menimbulkan *noise*.")
+        st.info("🌟 **Model dengan CLAHE** (Disarankan)")
+        st.markdown("Meningkatkan kontras secara lokal. Efektif menonjolkan detail halus untuk akurasi lebih tinggi.")
+
+    selected_model_name = st.selectbox(
+        "Pilih model yang ingin Anda gunakan:",
+        list(MODEL_INFO.keys()),
+        index=2 # Default ke CLAHE
+    )
+    
+    st.markdown("---")
+    st.header("2. Unggah Gambar")
+    uploaded_file = st.file_uploader(
+        "Pilih file gambar MRI...",
+        type=["jpg", "jpeg", "png"]
+    )
+
+# --- UI Halaman Utama ---
+st.title("🧠 Deteksi Tumor Otak Berbasis MRI")
+st.markdown("Selamat datang di aplikasi deteksi tumor otak. Silakan pilih model dan unggah gambar MRI Anda melalui panel di sebelah kiri untuk memulai analisis.")
 st.markdown("---")
 
-# --- DESKRIPSI APLIKASI ---
-with st.container():
-    st.markdown(
-        """
-        Aplikasi ini memungkinkan perbandingan tiga model *Deep Learning* untuk deteksi tumor otak berdasarkan gambar scan MRI. 
-        Pilih model, unggah gambar, dan lihat hasilnya secara instan.
-        """
-    )
-    with st.expander("ℹ️ **Detail Teknis Model**"):
-        st.markdown(
-            """
-            - **💻 Model**: Convolutional Neural Network (CNN)
-            - **🕹️ Arsitektur**: EfficientNet-B0 + Lapisan Tambahan
-            - **🎛️ Pendekatan**: *Transfer Learning* dengan bobot *pre-trained* dari ImageNet
-            - **🖼️ Perlakuan Tambahan**: 
-              1. **AHE** (*Adaptive Histogram Equalization*)
-              2. **CLAHE** (*Contrast Limited Adaptive Histogram Equalization*)
-            """
-        )
-
-# --- KONTROL PENGGUNA ---
-st.markdown("### 1. Pilih Model")
-selected_model_name = st.selectbox(
-    "Pilih model yang ingin Anda gunakan untuk prediksi:",
-    list(MODEL_INFO.keys())
-)
-
-st.markdown("### 2. Unggah Gambar")
 class_labels = ['Glioma', 'Meningioma', 'Tanpa Tumor', 'Pituitary']
-uploaded_file = st.file_uploader(
-    "Pilih file gambar MRI (format .jpg, .jpeg, atau .png)",
-    type=["jpg", "jpeg", "png"]
-)
 
 if uploaded_file is not None and models is not None:
     image = Image.open(uploaded_file)
     image_np = np.array(image)
     
-    st.markdown("---")
-    st.header("🔬 Hasil Analisis")
-    
-    processing_steps = None
-    processed_image_for_model = None
+    st.header("🔬 Hasil Analisis Citra")
     
     with st.spinner("Gambar sedang diproses dan diprediksi...🚀"):
         if selected_model_name == "Model Dasar (Tanpa Perlakuan)":
             processed_image_for_model, _ = preprocess_base(image_np)
+            processing_steps = None
         elif selected_model_name == "Model dengan AHE":
             processed_image_for_model, processing_steps = preprocess_enhanced(image_np, method='AHE')
         else: # CLAHE
@@ -219,58 +219,55 @@ if uploaded_file is not None and models is not None:
         predicted_class_label = class_labels[predicted_class_index]
         confidence = np.max(prediction) * 100
 
-    # --- Tampilan Hasil ---
+    # --- Tampilan Hasil Gambar ---
     if processing_steps:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.image(image, caption='Gambar MRI Asli', width=300)
-        with col2:
+        tab1, tab2 = st.tabs(["🖼️ Gambar Asli", "✨ Gambar Setelah Pra-pemrosesan"])
+        with tab1:
+            st.image(image, caption='Gambar MRI Asli', use_column_width=True)
+        with tab2:
             final_processed_key = '5. Unsharp Masked'
-            st.image(processing_steps[final_processed_key], caption=f'Gambar Setelah Pra-pemrosesan', width=300)
+            st.image(processing_steps[final_processed_key], caption=f'Gambar Hasil {selected_model_name.split(" ")[2]}', use_column_width=True)
     else:
-        st.image(image, caption='Gambar MRI Asli', width=300)
+        st.image(image, caption='Gambar MRI Asli', width=400)
 
     st.markdown("---")
     st.header("📊 Hasil Prediksi")
 
-    col_res1, col_res2 = st.columns([2, 3]) # Kolom hasil lebih lebar
+    col_res1, col_res2 = st.columns([2, 3])
     with col_res1:
-        with st.container():
-            st.markdown('<div class="custom-container">', unsafe_allow_html=True)
-            st.markdown('<p class="custom-header">Hasil Deteksi</p>', unsafe_allow_html=True)
-            st.success(f"**Jenis Terdeteksi:** {predicted_class_label}")
-            st.info(f"**Tingkat Keyakinan:** {confidence:.2f}%")
-            st.markdown("---")
-            st.markdown("##### **Deskripsi Singkat**")
-            st.write(TUMOR_INFO[predicted_class_label])
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-container">', unsafe_allow_html=True)
+        st.markdown('<p class="custom-header">Hasil Deteksi</p>', unsafe_allow_html=True)
+        st.success(f"**Jenis Terdeteksi:** {predicted_class_label}")
+        st.info(f"**Tingkat Keyakinan:** {confidence:.2f}%")
+        st.markdown("---")
+        st.markdown("##### **Deskripsi Singkat**")
+        st.write(TUMOR_INFO[predicted_class_label])
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_res2:
-        with st.container():
-            st.markdown('<div class="custom-container">', unsafe_allow_html=True)
-            st.markdown('<p class="custom-header">Distribusi Probabilitas</p>', unsafe_allow_html=True)
-            prob_df = pd.DataFrame({'Kelas': class_labels, 'Probabilitas': prediction[0] * 100})
-            
-            fig, ax = plt.subplots(figsize=(8, 5))
-            bars = ax.barh(prob_df['Kelas'], prob_df['Probabilitas'], color='#1DB954')
-            ax.bar_label(bars, fmt='%.2f%%', padding=3, color='white', fontsize=10)
-            ax.set_xlim(0, 115)
-            ax.set_xlabel('Probabilitas (%)', fontsize=12, color='white')
-            ax.tick_params(axis='y', colors='white', length=0)
-            ax.tick_params(axis='x', colors='white', labelsize=10)
-            
-            # Kustomisasi agar cocok dengan tema gelap Streamlit
-            fig.patch.set_alpha(0.0)
-            ax.patch.set_alpha(0.0)
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            ax.spines['bottom'].set_color('#555555')
-            ax.grid(axis='x', linestyle='--', alpha=0.2)
-            ax.set_axisbelow(True)
-            fig.tight_layout()
-            st.pyplot(fig)
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-container">', unsafe_allow_html=True)
+        st.markdown('<p class="custom-header">Distribusi Probabilitas</p>', unsafe_allow_html=True)
+        prob_df = pd.DataFrame({'Kelas': class_labels, 'Probabilitas': prediction[0] * 100})
+        
+        fig, ax = plt.subplots(figsize=(8, 5))
+        bars = ax.barh(prob_df['Kelas'], prob_df['Probabilitas'], color='#1DB954')
+        ax.bar_label(bars, fmt='%.2f%%', padding=3, color='white', fontsize=10)
+        ax.set_xlim(0, 115)
+        ax.set_xlabel('Probabilitas (%)', fontsize=12, color='white')
+        ax.tick_params(axis='y', colors='white', length=0)
+        ax.tick_params(axis='x', colors='white', labelsize=10)
+        
+        fig.patch.set_alpha(0.0)
+        ax.patch.set_alpha(0.0)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_color('#555555')
+        ax.grid(axis='x', linestyle='--', alpha=0.2)
+        ax.set_axisbelow(True)
+        fig.tight_layout()
+        st.pyplot(fig)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     if processing_steps:
         with st.expander("🔬 **Lihat Detail Langkah Pra-pemrosesan**"):
@@ -280,5 +277,5 @@ if uploaded_file is not None and models is not None:
                     st.image(step_image, caption=step_name, use_column_width=True)
 
 else:
-    st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
+    st.info("Selamat datang! Silakan pilih model dan unggah gambar di panel sebelah kiri untuk memulai. ⏱️")
 
