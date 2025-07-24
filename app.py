@@ -183,9 +183,24 @@ with st.container():
 
 # --- KONTROL PENGGUNA ---
 st.markdown("### 1. Pilih Model")
+
+# --- PENAMBAHAN: Penjelasan Model ---
+with st.container():
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.info("📦 **Model Dasar**")
+        st.markdown("Model ini menggunakan gambar MRI asli yang hanya diubah ukurannya. Pendekatan ini cepat tetapi mungkin kurang akurat pada gambar dengan kontras rendah.")
+    with col2:
+        st.info("✨ **Model dengan AHE**")
+        st.markdown("Model ini menggunakan gambar yang telah ditingkatkan kontrasnya secara global dengan AHE. Ini membantu memperjelas fitur di seluruh gambar.")
+    with col3:
+        st.info("🌟 **Model dengan CLAHE**")
+        st.markdown("Model ini menggunakan CLAHE untuk meningkatkan kontras secara lokal. Ini sangat efektif untuk menonjolkan detail halus di area spesifik gambar MRI.")
+
 selected_model_name = st.selectbox(
     "Pilih model yang ingin Anda gunakan untuk prediksi:",
-    list(MODEL_INFO.keys())
+    list(MODEL_INFO.keys()),
+    label_visibility="collapsed" # Sembunyikan label karena sudah ada header di atas
 )
 
 st.markdown("### 2. Unggah Gambar")
@@ -281,4 +296,3 @@ if uploaded_file is not None and models is not None:
 
 else:
     st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
-
