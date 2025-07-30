@@ -114,35 +114,49 @@ def preprocess_base(image_array, image_size=224):
     return final_image, None
 
 def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
-    """Pipeline pra-pemrosesan untuk AHE atau CLAHE."""
+    """Pra-pemrosesan untuk AHE/CLAHE dan memastikan output 3-channel RGB (224x224)."""
     steps = {}
-    if len(image_array.shape) > 2 and image_array.shape[2] == 3:
+
+    # Konversi ke grayscale
+    if len(image_array.shape) == 3 and image_array.shape[2] == 3:
         gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+    elif len(image_array.shape) == 3 and image_array.shape[2] == 4:
+        gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGBA2GRAY)
     else:
-        gray_image = image_array
+        gray_image = image_array  # Asumsikan sudah grayscale
     steps['1. Grayscale'] = gray_image
 
-    padded_image = resize_with_padding(gray_image, image_size)
+    # Resize dengan padding ke 225x225 (sementara)
+    padded_image = resize_with_padding(gray_image, 225)
     steps['2. Resized & Padded'] = padded_image
 
+    # AHE atau CLAHE
     if method == 'AHE':
         enhancer = cv2.createCLAHE(clipLimit=0.0, tileGridSize=(8, 8))
-        enhanced_image = enhancer.apply(padded_image)
-        steps['3. AHE'] = enhanced_image
     else:
         enhancer = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced_image = enhancer.apply(padded_image)
-        steps['3. CLAHE'] = enhanced_image
+    enhanced_image = enhancer.apply(padded_image)
+    steps['3. Enhanced'] = enhanced_image
 
+    # Denoising
     denoised_image = cv2.fastNlMeansDenoising(enhanced_image, None, h=10, templateWindowSize=7, searchWindowSize=21)
     steps['4. Denoised'] = denoised_image
 
+    # Unsharp Mask
     blurred = cv2.GaussianBlur(denoised_image, (5, 5), 0)
     unsharp_image = cv2.addWeighted(denoised_image, 1.5, blurred, -0.5, 0)
     steps['5. Unsharp Masked'] = unsharp_image
 
-    three_channel_image = cv2.cvtColor(unsharp_image, cv2.COLOR_GRAY2RGB)
-    final_image = np.expand_dims(three_channel_image, axis=0)
+    # Konversi ke RGB (3 channel)
+    rgb_image = cv2.cvtColor(unsharp_image, cv2.COLOR_GRAY2RGB)
+
+    # Resize ke (224, 224) agar sesuai input model
+    resized_rgb = cv2.resize(rgb_image, (224, 224))
+    steps['6. Final Resize'] = resized_rgb
+
+    # Tambahkan batch dimensi
+    final_image = np.expand_dims(resized_rgb, axis=0)
+
     return final_image, steps
 
 # --- Informasi Tumor ---
