@@ -46,11 +46,11 @@ st.markdown("""
 # --- Kamus Informasi Model ---
 MODEL_INFO = {
     "Model Dasar (Tanpa Perlakuan)": {
-        "path": "base_model.keras", 
+        "path": "base_model.keras",
         "gdrive_id": "17w7n0H5XH6eiOHqkq4RzScmIig8Xt1Mf"
     },
     "Model dengan AHE": {
-        "path": "ahe_model.keras", 
+        "path": "ahe_model.keras",
         "gdrive_id": "1Z_st-eTAEc20RcKvvAuY6bSw9Q1B9_PZ"
     },
     "Model dengan CLAHE": {
@@ -97,7 +97,6 @@ def resize_with_padding(image, target_size=224):
     padded[top:top + new_h, left:left + new_w] = resized
     return padded
 
-# --- PERBAIKAN DI SINI ---
 def preprocess_base(image_array, image_size=224):
     """
     Pra-pemrosesan sederhana untuk model dasar.
@@ -244,8 +243,10 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None and models is not None:
-    # Buka gambar dan pastikan dalam format RGB sejak awal
-    image = Image.open(uploaded_file).convert('RGB')
+    # --- PERBAIKAN DI SINI ---
+    # Buka gambar menggunakan Pillow dan konversi ke array numpy.
+    # Jangan lakukan konversi warna di sini. Biarkan fungsi pra-pemrosesan yang menanganinya.
+    image = Image.open(uploaded_file)
     image_np = np.array(image)
     
     st.markdown("---")
@@ -279,6 +280,7 @@ if uploaded_file is not None and models is not None:
             final_processed_key = '5. Unsharp Masked'
             st.image(processing_steps[final_processed_key], caption=f'Gambar Setelah Pra-pemrosesan', use_column_width=True)
     else:
+        # Tampilkan gambar asli yang dibuka dengan Pillow
         st.image(image, caption='Gambar MRI Asli', width=300)
 
     st.markdown("---")
@@ -333,4 +335,3 @@ elif models is None:
     st.error("Model tidak berhasil dimuat. Aplikasi tidak dapat melanjutkan. Silakan periksa log error di atas.")
 else:
     st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
-
