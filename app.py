@@ -87,12 +87,19 @@ def resize_with_padding(image, target_size=224):
     h, w = image.shape[:2]
     scale = min(target_size / w, target_size / h)
     new_w, new_h = int(w * scale), int(h * scale)
+
     resized = cv2.resize(image, (new_w, new_h))
+    
+    # Pastikan padding menghasilkan tepat 224x224
     padded = np.full((target_size, target_size), 0, dtype=np.uint8)
     top = (target_size - new_h) // 2
+    bottom = target_size - new_h - top
     left = (target_size - new_w) // 2
-    padded[top:top + new_h, left:left + new_w] = resized
+    right = target_size - new_w - left
+
+    padded = cv2.copyMakeBorder(resized, top, bottom, left, right, borderType=cv2.BORDER_CONSTANT, value=0)
     return padded
+
 
 def preprocess_base(image_array, image_size=224):
     """Pra-pemrosesan sederhana untuk model dasar dengan penanganan channel yang benar."""
