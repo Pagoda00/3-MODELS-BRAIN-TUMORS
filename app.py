@@ -1,5 +1,6 @@
 import streamlit as st
 import tensorflow as tf
+from tensorflow.keras.applications import EfficientNetB0
 import numpy as np
 import cv2
 from PIL import Image
@@ -46,8 +47,8 @@ st.markdown("""
 # --- Kamus Informasi Model ---
 MODEL_INFO = {
     "Model Dasar (Tanpa Perlakuan)": {
-        "path": "base_model.keras", 
-        "gdrive_id": "12dcMqU4G2Kww6Xh8IekSAdETVkCix9iH"
+        "path": "base_model.keras",
+        "gdrive_id": "17w7n0H5XH6eiOHqkq4RzScmIig8Xt1Mf"
     },
     "Model dengan AHE": {
         "path": "ahe_model.keras",
@@ -59,10 +60,36 @@ MODEL_INFO = {
     }
 }
 
-# --- Fungsi Cache untuk Memuat Semua Model ---
+# --- PERBAIKAN UTAMA 1: Fungsi untuk Membangun Arsitektur Model ---
+def create_model(image_size=224):
+    """
+    Fungsi ini secara eksplisit membangun arsitektur model yang sama
+    persis seperti pada notebook pelatihan. Ini lebih andal daripada load_model().
+    """
+    # Gunakan weights=None karena kita hanya butuh arsitekturnya.
+    # Bobot (termasuk dari imagenet) akan dimuat dari file .keras Anda.
+    effnet = EfficientNetB0(weights=None, include_top=False, input_shape=(image_size, image_size, 3))
+
+    model_output = effnet.output
+    model_output = tf.keras.layers.GlobalAveragePooling2D()(model_output)
+    model_output = tf.keras.layers.Dropout(rate=0.50)(model_output)
+    model_output = tf.keras.layers.BatchNormalization()(model_output)
+    model_output = tf.keras.layers.Dense(4, activation='softmax')(model_output)
+    model = tf.keras.models.Model(inputs=effnet.input, outputs=model_output)
+
+    # Compile model agar bisa digunakan untuk prediksi
+    model.compile(
+        loss='categorical_crossentropy',
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        metrics=['accuracy']
+    )
+    return model
+
+# --- PERBAIKAN UTAMA 2: Fungsi Cache untuk Memuat Bobot Model ---
 @st.cache_resource
-def load_models():
+def load_model_weights():
     models = {}
+    # Langkah 1: Unduh semua file model jika belum ada
     with st.spinner("Mohon tunggu, sedang mempersiapkan model... Ini hanya dilakukan sekali."):
         for model_name, info in MODEL_INFO.items():
             model_path = info["path"]
@@ -74,15 +101,19 @@ def load_models():
                     st.error(f"Gagal mengunduh {model_name}: {e}")
                     return None
     
+    # Langkah 2: Buat arsitektur dan muat bobotnya
     try:
         for model_name, info in MODEL_INFO.items():
-            models[model_name] = tf.keras.models.load_model(info["path"])
+            # Buat kerangka arsitektur yang baru
+            model = create_model()
+            # Muat hanya bobot (weights) ke dalam kerangka tersebut
+            model.load_weights(info["path"])
+            models[model_name] = model
         st.success("Semua model berhasil dimuat! 🎉")
         return models
     except Exception as e:
-        # Menampilkan error yang lebih spesifik jika terjadi saat memuat model
-        st.error(f"Error saat memuat file model dari disk: {e}")
-        st.error("Pastikan file model tidak korup dan kompatibel dengan versi TensorFlow Anda.")
+        st.error(f"Error saat memuat bobot model dari file: {e}")
+        st.error("Pastikan file model tidak korup dan arsitektur di kode ini cocok dengan saat training.")
         return None
 
 # --- Fungsi Pra-pemrosesan Gambar ---
@@ -97,27 +128,13 @@ def resize_with_padding(image, target_size=224):
     padded[top:top + new_h, left:left + new_w] = resized
     return padded
 
-# --- PERBAIKAN DI SINI ---
 def preprocess_base(image_array, image_size=224):
-    """
-    Pra-pemrosesan sederhana untuk model dasar.
-    Input `image_array` dijamin sudah dalam format RGB.
-    """
-    # Resize gambar langsung ke 224x224
     resized_image = cv2.resize(image_array, (image_size, image_size))
-    
-    # Tambahkan dimensi batch untuk input model
     final_image = np.expand_dims(resized_image, axis=0)
     return final_image, None
 
-
 def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
-    """
-    Pipeline pra-pemrosesan untuk AHE atau CLAHE.
-    Input `image_array` dijamin sudah dalam format RGB.
-    """
     steps = {}
-    # Konversi ke Grayscale sebagai langkah pertama
     gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
     steps['1. Grayscale'] = gray_image
 
@@ -125,10 +142,10 @@ def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     steps['2. Resized & Padded'] = padded_image
 
     if method == 'AHE':
-        enhancer = cv2.createCLAHE(clipLimit=0.0, tileGridSize=(8, 8)) # AHE adalah kasus khusus CLAHE
+        enhancer = cv2.createCLAHE(clipLimit=0.0, tileGridSize=(8, 8))
         enhanced_image = enhancer.apply(padded_image)
         steps['3. AHE'] = enhanced_image
-    else: # CLAHE
+    else:
         enhancer = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         enhanced_image = enhancer.apply(padded_image)
         steps['3. CLAHE'] = enhanced_image
@@ -140,7 +157,6 @@ def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     unsharp_image = cv2.addWeighted(denoised_image, 1.5, blurred, -0.5, 0)
     steps['5. Unsharp Masked'] = unsharp_image
 
-    # Konversi kembali ke 3-channel untuk input model
     three_channel_image = cv2.cvtColor(unsharp_image, cv2.COLOR_GRAY2RGB)
     final_image = np.expand_dims(three_channel_image, axis=0)
     return final_image, steps
@@ -154,7 +170,7 @@ TUMOR_INFO = {
 }
 
 # --- UI Aplikasi Utama ---
-models = load_models()
+models = load_model_weights() # Memanggil fungsi yang sudah diperbaiki
 
 # --- HEADER DENGAN LOGO ---
 col_logo1, col_logo_mid, col_logo2 = st.columns([1, 4, 1])
@@ -222,7 +238,6 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None and models is not None:
-    # --- PERBAIKAN DI SINI ---
     # Buka gambar dan langsung konversi ke format RGB untuk konsistensi.
     image = Image.open(uploaded_file).convert('RGB')
     image_np = np.array(image)
@@ -245,9 +260,7 @@ if uploaded_file is not None and models is not None:
         prediction = model.predict(processed_image_for_model)
         predicted_class_index = np.argmax(prediction)
         
-        # --- PERBAIKAN DI SINI ---
         # Label harus sesuai urutan abjad yang dipelajari model
-        # ['glioma', 'meningioma', 'notumor', 'pituitary']
         class_labels_from_model = ['Glioma', 'Meningioma', 'notumor', 'Pituitary']
         predicted_label_from_model = class_labels_from_model[predicted_class_index]
 
@@ -290,7 +303,6 @@ if uploaded_file is not None and models is not None:
         st.markdown('<div class="custom-container">', unsafe_allow_html=True)
         st.markdown('<p class="custom-header">Distribusi Probabilitas</p>', unsafe_allow_html=True)
         
-        # Gunakan label tampilan untuk grafik
         display_labels_for_chart = list(display_mapping.values())
         prob_df = pd.DataFrame({'Kelas': display_labels_for_chart, 'Probabilitas': prediction[0] * 100})
         
