@@ -243,7 +243,6 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None and models is not None:
-    # --- PERBAIKAN DI SINI ---
     # Buka gambar menggunakan Pillow dan konversi ke array numpy.
     # Jangan lakukan konversi warna di sini. Biarkan fungsi pra-pemrosesan yang menanganinya.
     image = Image.open(uploaded_file)
@@ -264,6 +263,12 @@ if uploaded_file is not None and models is not None:
             processed_image_for_model, processing_steps = preprocess_enhanced(image_np, method='CLAHE')
 
         model = models[selected_model_name]
+
+        # --- LANGKAH DIAGNOSTIK ---
+        # Tampilkan shape dari data yang akan diprediksi untuk memastikan formatnya benar.
+        # Shape yang diharapkan adalah (1, 224, 224, 3)
+        st.info(f"DEBUG: Shape gambar yang dikirim ke model: {processed_image_for_model.shape}")
+
         prediction = model.predict(processed_image_for_model)
         predicted_class_index = np.argmax(prediction)
         # Urutan label disesuaikan dengan output model Anda
