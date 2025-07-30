@@ -97,48 +97,28 @@ def resize_with_padding(image, target_size=224):
     padded[top:top + new_h, left:left + new_w] = resized
     return padded
 
+# --- PERBAIKAN DI SINI ---
 def preprocess_base(image_array, image_size=224):
     """
     Pra-pemrosesan sederhana untuk model dasar.
-    Fungsi ini diubah untuk secara eksplisit memastikan outputnya selalu 3-channel (RGB).
+    Input `image_array` dijamin sudah dalam format RGB.
     """
-    # 1. Cek dimensi gambar. Jika 2D (grayscale tanpa channel), konversi ke RGB.
-    if image_array.ndim == 2:
-        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
-    # 2. Jika 3D, cek jumlah channel.
-    elif image_array.ndim == 3:
-        # Jika punya 4 channel (RGBA), konversi ke RGB.
-        if image_array.shape[2] == 4:
-            image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
-        # Jika punya 1 channel (grayscale), konversi ke RGB.
-        elif image_array.shape[2] == 1:
-            image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
-        # Jika sudah 3 channel (RGB), gunakan langsung.
-        elif image_array.shape[2] == 3:
-            image_rgb = image_array
-        else:
-            raise ValueError(f"Jumlah channel tidak didukung: {image_array.shape[2]}")
-    else:
-        raise ValueError(f"Dimensi gambar tidak didukung: {image_array.ndim}")
-
-    # 3. Resize gambar yang sudah dijamin berformat RGB.
-    resized_image = cv2.resize(image_rgb, (image_size, image_size))
+    # Resize gambar langsung ke 224x224
+    resized_image = cv2.resize(image_array, (image_size, image_size))
     
-    # 4. Tambahkan dimensi batch untuk input model.
+    # Tambahkan dimensi batch untuk input model
     final_image = np.expand_dims(resized_image, axis=0)
     return final_image, None
 
 
 def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
-    """Pipeline pra-pemrosesan untuk AHE atau CLAHE."""
+    """
+    Pipeline pra-pemrosesan untuk AHE atau CLAHE.
+    Input `image_array` dijamin sudah dalam format RGB.
+    """
     steps = {}
-    # Pastikan gambar input adalah grayscale untuk diproses
-    if len(image_array.shape) > 2 and image_array.shape[2] in [3, 4]:
-        gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
-    elif len(image_array.shape) > 2 and image_array.shape[2] == 1:
-        gray_image = image_array.squeeze() # Hapus dimensi channel
-    else:
-        gray_image = image_array
+    # Konversi ke Grayscale sebagai langkah pertama
+    gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
     steps['1. Grayscale'] = gray_image
 
     padded_image = resize_with_padding(gray_image, image_size)
@@ -236,16 +216,15 @@ selected_model_name = st.selectbox(
 )
 
 st.markdown("### 2. Unggah Gambar")
-class_labels = ['Glioma', 'Meningioma', 'Tanpa Tumor', 'Pituitary']
 uploaded_file = st.file_uploader(
     "Pilih file gambar MRI (format .jpg, .jpeg, atau .png)",
     type=["jpg", "jpeg", "png"]
 )
 
 if uploaded_file is not None and models is not None:
-    # Buka gambar menggunakan Pillow dan konversi ke array numpy.
-    # Jangan lakukan konversi warna di sini. Biarkan fungsi pra-pemrosesan yang menanganinya.
-    image = Image.open(uploaded_file)
+    # --- PERBAIKAN DI SINI ---
+    # Buka gambar dan langsung konversi ke format RGB untuk konsistensi.
+    image = Image.open(uploaded_file).convert('RGB')
     image_np = np.array(image)
     
     st.markdown("---")
@@ -263,17 +242,23 @@ if uploaded_file is not None and models is not None:
             processed_image_for_model, processing_steps = preprocess_enhanced(image_np, method='CLAHE')
 
         model = models[selected_model_name]
-
-        # --- LANGKAH DIAGNOSTIK ---
-        # Tampilkan shape dari data yang akan diprediksi untuk memastikan formatnya benar.
-        # Shape yang diharapkan adalah (1, 224, 224, 3)
-        st.info(f"DEBUG: Shape gambar yang dikirim ke model: {processed_image_for_model.shape}")
-
         prediction = model.predict(processed_image_for_model)
         predicted_class_index = np.argmax(prediction)
-        # Urutan label disesuaikan dengan output model Anda
-        class_labels_sorted = sorted(class_labels) 
-        predicted_class_label = class_labels_sorted[predicted_class_index]
+        
+        # --- PERBAIKAN DI SINI ---
+        # Label harus sesuai urutan abjad yang dipelajari model
+        # ['glioma', 'meningioma', 'notumor', 'pituitary']
+        class_labels_from_model = ['Glioma', 'Meningioma', 'notumor', 'Pituitary']
+        predicted_label_from_model = class_labels_from_model[predicted_class_index]
+
+        # Mapping untuk tampilan yang lebih ramah pengguna
+        display_mapping = {
+            'Glioma': 'Glioma',
+            'Meningioma': 'Meningioma',
+            'notumor': 'Tanpa Tumor',
+            'Pituitary': 'Pituitary'
+        }
+        predicted_class_label = display_mapping[predicted_label_from_model]
         confidence = np.max(prediction) * 100
 
     # --- Tampilan Hasil ---
@@ -285,7 +270,6 @@ if uploaded_file is not None and models is not None:
             final_processed_key = '5. Unsharp Masked'
             st.image(processing_steps[final_processed_key], caption=f'Gambar Setelah Pra-pemrosesan', use_column_width=True)
     else:
-        # Tampilkan gambar asli yang dibuka dengan Pillow
         st.image(image, caption='Gambar MRI Asli', width=300)
 
     st.markdown("---")
@@ -305,7 +289,10 @@ if uploaded_file is not None and models is not None:
     with col_res2:
         st.markdown('<div class="custom-container">', unsafe_allow_html=True)
         st.markdown('<p class="custom-header">Distribusi Probabilitas</p>', unsafe_allow_html=True)
-        prob_df = pd.DataFrame({'Kelas': class_labels_sorted, 'Probabilitas': prediction[0] * 100})
+        
+        # Gunakan label tampilan untuk grafik
+        display_labels_for_chart = list(display_mapping.values())
+        prob_df = pd.DataFrame({'Kelas': display_labels_for_chart, 'Probabilitas': prediction[0] * 100})
         
         fig, ax = plt.subplots(figsize=(8, 5))
         bars = ax.barh(prob_df['Kelas'], prob_df['Probabilitas'], color='#1DB954')
@@ -329,7 +316,6 @@ if uploaded_file is not None and models is not None:
 
     if processing_steps:
         with st.expander("🔬 **Lihat Detail Langkah Pra-pemrosesan**"):
-            # Tentukan jumlah kolom yang fleksibel
             num_steps = len(processing_steps)
             cols = st.columns(num_steps)
             for idx, (step_name, step_image) in enumerate(processing_steps.items()):
@@ -337,6 +323,6 @@ if uploaded_file is not None and models is not None:
                     st.image(step_image, caption=step_name, use_column_width=True)
 
 elif models is None:
-    st.error("Model tidak berhasil dimuat. Aplikasi tidak dapat melanjutkan. Silakan periksa log error di atas.")
+    st.error("Model tidak berhasil dimuat. Aplikasi tidak dapat melanjutkan. Silakan periksa log error di atas dan coba muat ulang halaman.")
 else:
-    st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
+    st.info("Silakan unggah gambar MRI untuk memulai analisis. ⏱️")
