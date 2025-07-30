@@ -95,17 +95,23 @@ def resize_with_padding(image, target_size=224):
     return padded
 
 def preprocess_base(image_array, image_size=224):
-    """Pra-pemrosesan sederhana untuk model dasar."""
+    """Pra-pemrosesan sederhana untuk model dasar dengan penanganan channel yang benar."""
+    # Pastikan gambar dalam format RGB
+    if image_array.ndim == 2:  # Jika gambar Grayscale (H, W)
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
+    elif image_array.shape[2] == 4:  # Jika gambar RGBA (H, W, 4)
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
+    elif image_array.shape[2] == 1: # Jika gambar Grayscale dengan 1 channel (H, W, 1)
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
+    else:  # Asumsi sudah RGB (H, W, 3)
+        image_rgb = image_array
+    
     # Resize gambar langsung ke 224x224
-    resized_image = cv2.resize(image_array, (image_size, image_size))
-    # Pastikan gambar 3 channel
-    if len(resized_image.shape) == 2:
-        three_channel_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2RGB)
-    else:
-        three_channel_image = resized_image
+    resized_image = cv2.resize(image_rgb, (image_size, image_size))
+    
     # Tambahkan dimensi batch
-    final_image = np.expand_dims(three_channel_image, axis=0)
-    return final_image, None # Kembalikan None untuk steps
+    final_image = np.expand_dims(resized_image, axis=0)
+    return final_image, None
 
 def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     """Pipeline pra-pemrosesan untuk AHE atau CLAHE."""
@@ -167,7 +173,7 @@ with col_logo_mid:
 
 st.markdown("---")
 
-# --- DESKRIPSI APLIKASI ---
+# --- DESKRSI APLIKASI ---
 with st.container():
     st.markdown(
         """
@@ -190,7 +196,7 @@ with st.container():
 # --- KONTROL PENGGUNA ---
 st.markdown("### 1. Pilih Model")
 
-# --- PENAMBAHAN: Penjelasan Model ---
+# --- PENJELASAN MODEL ---
 with st.container():
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -302,4 +308,3 @@ if uploaded_file is not None and models is not None:
 
 else:
     st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
-
