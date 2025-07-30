@@ -94,28 +94,18 @@ def resize_with_padding(image, target_size=224):
     padded[top:top + new_h, left:left + new_w] = resized
     return padded
 
-# --- PERBAIKAN: Fungsi preprocess_base yang lebih robust ---
 def preprocess_base(image_array, image_size=224):
-    """
-    Pra-pemrosesan sederhana untuk model dasar.
-    Memastikan output selalu 3-channel (RGB).
-    """
-    # Pastikan gambar dalam format RGB
-    if image_array.ndim == 2:  # Jika gambar Grayscale (H, W)
-        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
-    elif image_array.shape[2] == 4:  # Jika gambar RGBA (H, W, 4)
-        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
-    elif image_array.shape[2] == 1: # Jika gambar Grayscale dengan 1 channel (H, W, 1)
-        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
-    else:  # Asumsi sudah RGB (H, W, 3)
-        image_rgb = image_array
-    
+    """Pra-pemrosesan sederhana untuk model dasar."""
     # Resize gambar langsung ke 224x224
-    resized_image = cv2.resize(image_rgb, (image_size, image_size))
-    
+    resized_image = cv2.resize(image_array, (image_size, image_size))
+    # Pastikan gambar 3 channel
+    if len(resized_image.shape) == 2:
+        three_channel_image = cv2.cvtColor(resized_image, cv2.COLOR_GRAY2RGB)
+    else:
+        three_channel_image = resized_image
     # Tambahkan dimensi batch
-    final_image = np.expand_dims(resized_image, axis=0)
-    return final_image, None
+    final_image = np.expand_dims(three_channel_image, axis=0)
+    return final_image, None # Kembalikan None untuk steps
 
 def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     """Pipeline pra-pemrosesan untuk AHE atau CLAHE."""
@@ -312,3 +302,4 @@ if uploaded_file is not None and models is not None:
 
 else:
     st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
+
