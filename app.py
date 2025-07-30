@@ -46,8 +46,8 @@ st.markdown("""
 # --- Kamus Informasi Model ---
 MODEL_INFO = {
     "Model Dasar (Tanpa Perlakuan)": {
-        "path": "base_model.keras",
-        "gdrive_id": "17w7n0H5XH6eiOHqkq4RzScmIig8Xt1Mf"
+        "path": "base_model.keras", 
+        "gdrive_id": "12dcMqU4G2Kww6Xh8IekSAdETVkCix9iH"
     },
     "Model dengan AHE": {
         "path": "ahe_model.keras",
