@@ -94,13 +94,17 @@ def resize_with_padding(image, target_size=224):
     padded[top:top + new_h, left:left + new_w] = resized
     return padded
 
-# --- PERBAIKAN: Fungsi preprocess_base yang lebih robust ---
 def preprocess_base(image_array, image_size=224):
-    # Step 1: Grayscale Conversion
-    if len(image.shape) > 2 and image.shape[2] == 3:
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    else:
-        gray_image = image
+    """Pra-pemrosesan sederhana untuk model dasar dengan penanganan channel yang benar."""
+    # Pastikan gambar dalam format RGB
+    if image_array.ndim == 2:  # Jika gambar Grayscale (H, W)
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
+    elif image_array.shape[2] == 4:  # Jika gambar RGBA (H, W, 4)
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
+    elif image_array.shape[2] == 1: # Jika gambar Grayscale dengan 1 channel (H, W, 1)
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
+    else:  # Asumsi sudah RGB (H, W, 3)
+        image_rgb = image_array
     
     # Resize gambar langsung ke 224x224
     resized_image = cv2.resize(image_rgb, (image_size, image_size))
