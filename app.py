@@ -76,7 +76,7 @@ def load_models():
     try:
         for model_name, info in MODEL_INFO.items():
             models[model_name] = tf.keras.models.load_model(info["path"])
-        st.success("Semua model berhasil dimuat! 😉")
+        st.success("Semua model berhasil dimuat! �")
         return models
     except Exception as e:
         st.error(f"Error saat memuat model dari file lokal: {e}")
@@ -308,3 +308,4 @@ if uploaded_file is not None and models is not None:
 
 else:
     st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
+�
