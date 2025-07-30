@@ -255,6 +255,7 @@ if uploaded_file is not None and models is not None:
             processed_image_for_model, processing_steps = preprocess_enhanced(image_np, method='CLAHE')
 
         model = models[selected_model_name]
+        st.write("Shape input ke model:", processed_image_for_model.shape)
         prediction = model.predict(processed_image_for_model)
         predicted_class_index = np.argmax(prediction)
         predicted_class_label = class_labels[predicted_class_index]
