@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # --- Konfigurasi Halaman ---
-st.set_page_config(
+st.set_page_config( 
     page_title="Brain Tumor AI Detector",
     page_icon="🧠",
     layout="wide",
@@ -142,8 +142,8 @@ def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     steps['5. Unsharp Masked'] = unsharp_image
 
     three_channel_image = cv2.cvtColor(unsharp_image, cv2.COLOR_GRAY2RGB)
-    final_image = np.expand_dims(three_channel_image, axis=0)
-    return final_image, steps
+    resized_rgb = cv2.resize(three_channel_image, (224, 224))  # Pastikan ukuran sesuai dengan input model
+    final_image = np.expand_dims(resized_rgb, axis=0)
 
 # --- Informasi Tumor ---
 TUMOR_INFO = {
