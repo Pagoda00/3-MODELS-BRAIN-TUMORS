@@ -101,11 +101,13 @@ def preprocess_base(image_array, image_size=224):
     Memastikan output selalu 3-channel (RGB).
     """
     # Pastikan gambar dalam format RGB
-    if image_array.ndim == 2:  # Jika gambar Grayscale
+    if image_array.ndim == 2:  # Jika gambar Grayscale (H, W)
         image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
-    elif image_array.shape[2] == 4:  # Jika gambar RGBA (dengan alpha channel)
+    elif image_array.shape[2] == 4:  # Jika gambar RGBA (H, W, 4)
         image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
-    else:  # Asumsi sudah RGB
+    elif image_array.shape[2] == 1: # Jika gambar Grayscale dengan 1 channel (H, W, 1)
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
+    else:  # Asumsi sudah RGB (H, W, 3)
         image_rgb = image_array
     
     # Resize gambar langsung ke 224x224
