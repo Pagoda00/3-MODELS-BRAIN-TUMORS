@@ -27,6 +27,7 @@ st.markdown("""
         box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
         transition: 0.3s;
         margin-bottom: 20px;
+        height: 100%;
     }
     .custom-container:hover {
         box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
@@ -76,10 +77,12 @@ def load_models():
     try:
         for model_name, info in MODEL_INFO.items():
             models[model_name] = tf.keras.models.load_model(info["path"])
-        st.success("Semua model berhasil dimuat! �")
+        st.success("Semua model berhasil dimuat! 🎉")
         return models
     except Exception as e:
-        st.error(f"Error saat memuat model dari file lokal: {e}")
+        # Menampilkan error yang lebih spesifik jika terjadi saat memuat model
+        st.error(f"Error saat memuat file model dari disk: {e}")
+        st.error("Pastikan file model tidak korup dan kompatibel dengan versi TensorFlow Anda.")
         return None
 
 # --- Fungsi Pra-pemrosesan Gambar ---
@@ -87,44 +90,54 @@ def resize_with_padding(image, target_size=224):
     h, w = image.shape[:2]
     scale = min(target_size / w, target_size / h)
     new_w, new_h = int(w * scale), int(h * scale)
-
     resized = cv2.resize(image, (new_w, new_h))
-    
-    # Pastikan padding menghasilkan tepat 224x224
     padded = np.full((target_size, target_size), 0, dtype=np.uint8)
     top = (target_size - new_h) // 2
-    bottom = target_size - new_h - top
     left = (target_size - new_w) // 2
-    right = target_size - new_w - left
-
-    padded = cv2.copyMakeBorder(resized, top, bottom, left, right, borderType=cv2.BORDER_CONSTANT, value=0)
+    padded[top:top + new_h, left:left + new_w] = resized
     return padded
 
-
+# --- PERBAIKAN DI SINI ---
 def preprocess_base(image_array, image_size=224):
-    """Pra-pemrosesan sederhana untuk model dasar dengan penanganan channel yang benar."""
-    # Pastikan gambar dalam format RGB
-    if image_array.ndim == 2:  # Jika gambar Grayscale (H, W)
+    """
+    Pra-pemrosesan sederhana untuk model dasar.
+    Fungsi ini diubah untuk secara eksplisit memastikan outputnya selalu 3-channel (RGB).
+    """
+    # 1. Cek dimensi gambar. Jika 2D (grayscale tanpa channel), konversi ke RGB.
+    if image_array.ndim == 2:
         image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
-    elif image_array.shape[2] == 4:  # Jika gambar RGBA (H, W, 4)
-        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
-    elif image_array.shape[2] == 1: # Jika gambar Grayscale dengan 1 channel (H, W, 1)
-        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
-    else:  # Asumsi sudah RGB (H, W, 3)
-        image_rgb = image_array
-    
-    # Resize gambar langsung ke 224x224
+    # 2. Jika 3D, cek jumlah channel.
+    elif image_array.ndim == 3:
+        # Jika punya 4 channel (RGBA), konversi ke RGB.
+        if image_array.shape[2] == 4:
+            image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
+        # Jika punya 1 channel (grayscale), konversi ke RGB.
+        elif image_array.shape[2] == 1:
+            image_rgb = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
+        # Jika sudah 3 channel (RGB), gunakan langsung.
+        elif image_array.shape[2] == 3:
+            image_rgb = image_array
+        else:
+            raise ValueError(f"Jumlah channel tidak didukung: {image_array.shape[2]}")
+    else:
+        raise ValueError(f"Dimensi gambar tidak didukung: {image_array.ndim}")
+
+    # 3. Resize gambar yang sudah dijamin berformat RGB.
     resized_image = cv2.resize(image_rgb, (image_size, image_size))
     
-    # Tambahkan dimensi batch
+    # 4. Tambahkan dimensi batch untuk input model.
     final_image = np.expand_dims(resized_image, axis=0)
     return final_image, None
+
 
 def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     """Pipeline pra-pemrosesan untuk AHE atau CLAHE."""
     steps = {}
-    if len(image_array.shape) > 2 and image_array.shape[2] == 3:
+    # Pastikan gambar input adalah grayscale untuk diproses
+    if len(image_array.shape) > 2 and image_array.shape[2] in [3, 4]:
         gray_image = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+    elif len(image_array.shape) > 2 and image_array.shape[2] == 1:
+        gray_image = image_array.squeeze() # Hapus dimensi channel
     else:
         gray_image = image_array
     steps['1. Grayscale'] = gray_image
@@ -133,10 +146,10 @@ def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     steps['2. Resized & Padded'] = padded_image
 
     if method == 'AHE':
-        enhancer = cv2.createCLAHE(clipLimit=0.0, tileGridSize=(8, 8))
+        enhancer = cv2.createCLAHE(clipLimit=0.0, tileGridSize=(8, 8)) # AHE adalah kasus khusus CLAHE
         enhanced_image = enhancer.apply(padded_image)
         steps['3. AHE'] = enhanced_image
-    else:
+    else: # CLAHE
         enhancer = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         enhanced_image = enhancer.apply(padded_image)
         steps['3. CLAHE'] = enhanced_image
@@ -148,6 +161,7 @@ def preprocess_enhanced(image_array, method='CLAHE', image_size=224):
     unsharp_image = cv2.addWeighted(denoised_image, 1.5, blurred, -0.5, 0)
     steps['5. Unsharp Masked'] = unsharp_image
 
+    # Konversi kembali ke 3-channel untuk input model
     three_channel_image = cv2.cvtColor(unsharp_image, cv2.COLOR_GRAY2RGB)
     final_image = np.expand_dims(three_channel_image, axis=0)
     return final_image, steps
@@ -180,7 +194,7 @@ with col_logo_mid:
 
 st.markdown("---")
 
-# --- DESKRSI APLIKASI ---
+# --- DESKRIPSI APLIKASI ---
 with st.container():
     st.markdown(
         """
@@ -230,7 +244,8 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None and models is not None:
-    image = Image.open(uploaded_file)
+    # Buka gambar dan pastikan dalam format RGB sejak awal
+    image = Image.open(uploaded_file).convert('RGB')
     image_np = np.array(image)
     
     st.markdown("---")
@@ -250,68 +265,72 @@ if uploaded_file is not None and models is not None:
         model = models[selected_model_name]
         prediction = model.predict(processed_image_for_model)
         predicted_class_index = np.argmax(prediction)
-        predicted_class_label = class_labels[predicted_class_index]
+        # Urutan label disesuaikan dengan output model Anda
+        class_labels_sorted = sorted(class_labels) 
+        predicted_class_label = class_labels_sorted[predicted_class_index]
         confidence = np.max(prediction) * 100
 
     # --- Tampilan Hasil ---
     if processing_steps:
         col1, col2 = st.columns(2)
         with col1:
-            st.image(image, caption='Gambar MRI Asli', width=300)
+            st.image(image, caption='Gambar MRI Asli', use_column_width=True)
         with col2:
             final_processed_key = '5. Unsharp Masked'
-            st.image(processing_steps[final_processed_key], caption=f'Gambar Setelah Pra-pemrosesan', width=300)
+            st.image(processing_steps[final_processed_key], caption=f'Gambar Setelah Pra-pemrosesan', use_column_width=True)
     else:
         st.image(image, caption='Gambar MRI Asli', width=300)
 
     st.markdown("---")
     st.header("📊 Hasil Prediksi")
 
-    col_res1, col_res2 = st.columns([2, 3]) # Kolom hasil lebih lebar
+    col_res1, col_res2 = st.columns([2, 3])
     with col_res1:
-        with st.container():
-            st.markdown('<div class="custom-container">', unsafe_allow_html=True)
-            st.markdown('<p class="custom-header">Hasil Deteksi</p>', unsafe_allow_html=True)
-            st.success(f"**Jenis Terdeteksi:** {predicted_class_label}")
-            st.info(f"**Tingkat Keyakinan:** {confidence:.2f}%")
-            st.markdown("---")
-            st.markdown("##### **Deskripsi Singkat**")
-            st.write(TUMOR_INFO[predicted_class_label])
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-container">', unsafe_allow_html=True)
+        st.markdown('<p class="custom-header">Hasil Deteksi</p>', unsafe_allow_html=True)
+        st.success(f"**Jenis Terdeteksi:** {predicted_class_label}")
+        st.info(f"**Tingkat Keyakinan:** {confidence:.2f}%")
+        st.markdown("---")
+        st.markdown("##### **Deskripsi Singkat**")
+        st.write(TUMOR_INFO[predicted_class_label])
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_res2:
-        with st.container():
-            st.markdown('<div class="custom-container">', unsafe_allow_html=True)
-            st.markdown('<p class="custom-header">Distribusi Probabilitas</p>', unsafe_allow_html=True)
-            prob_df = pd.DataFrame({'Kelas': class_labels, 'Probabilitas': prediction[0] * 100})
-            
-            fig, ax = plt.subplots(figsize=(8, 5))
-            bars = ax.barh(prob_df['Kelas'], prob_df['Probabilitas'], color='#1DB954')
-            ax.bar_label(bars, fmt='%.2f%%', padding=3, color='white', fontsize=10)
-            ax.set_xlim(0, 115)
-            ax.set_xlabel('Probabilitas (%)', fontsize=12, color='white')
-            ax.tick_params(axis='y', colors='white', length=0)
-            ax.tick_params(axis='x', colors='white', labelsize=10)
-            
-            # Kustomisasi agar cocok dengan tema gelap Streamlit
-            fig.patch.set_alpha(0.0)
-            ax.patch.set_alpha(0.0)
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.spines['left'].set_visible(False)
-            ax.spines['bottom'].set_color('#555555')
-            ax.grid(axis='x', linestyle='--', alpha=0.2)
-            ax.set_axisbelow(True)
-            fig.tight_layout()
-            st.pyplot(fig)
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-container">', unsafe_allow_html=True)
+        st.markdown('<p class="custom-header">Distribusi Probabilitas</p>', unsafe_allow_html=True)
+        prob_df = pd.DataFrame({'Kelas': class_labels_sorted, 'Probabilitas': prediction[0] * 100})
+        
+        fig, ax = plt.subplots(figsize=(8, 5))
+        bars = ax.barh(prob_df['Kelas'], prob_df['Probabilitas'], color='#1DB954')
+        ax.bar_label(bars, fmt='%.2f%%', padding=3, color='white', fontsize=10)
+        ax.set_xlim(0, 115)
+        ax.set_xlabel('Probabilitas (%)', fontsize=12, color='white')
+        ax.tick_params(axis='y', colors='white', length=0)
+        ax.tick_params(axis='x', colors='white', labelsize=10)
+        
+        fig.patch.set_alpha(0.0)
+        ax.patch.set_alpha(0.0)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_color('#555555')
+        ax.grid(axis='x', linestyle='--', alpha=0.2)
+        ax.set_axisbelow(True)
+        fig.tight_layout()
+        st.pyplot(fig)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     if processing_steps:
         with st.expander("🔬 **Lihat Detail Langkah Pra-pemrosesan**"):
-            cols = st.columns(len(processing_steps))
+            # Tentukan jumlah kolom yang fleksibel
+            num_steps = len(processing_steps)
+            cols = st.columns(num_steps)
             for idx, (step_name, step_image) in enumerate(processing_steps.items()):
                 with cols[idx]:
                     st.image(step_image, caption=step_name, use_column_width=True)
 
+elif models is None:
+    st.error("Model tidak berhasil dimuat. Aplikasi tidak dapat melanjutkan. Silakan periksa log error di atas.")
 else:
     st.info("Menunggu gambar MRI untuk diunggah... ⏱️")
+
