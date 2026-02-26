@@ -48,15 +48,15 @@ st.markdown("""
 MODEL_INFO = {
     "Model Dasar (Tanpa Perlakuan)": {
         "path": "base_model.keras",
-        "gdrive_id": "17w7n0H5XH6eiOHqkq4RzScmIig8Xt1Mf"
+        "gdrive_id": "12dcMqU4G2Kww6Xh8IekSAdETVkCix9iH" 
     },
     "Model dengan AHE": {
         "path": "ahe_model.keras",
-        "gdrive_id": "1Z_st-eTAEc20RcKvvAuY6bSw9Q1B9_PZ"
+        "gdrive_id": "1Z_st-eTAEc20RcKvvAuY6bSw9Q1B9_PZ" 
     },
     "Model dengan CLAHE": {
         "path": "clahe_model.keras",
-        "gdrive_id": "1N-vil1LujsZ4kjFhf6_Lhh81jWUqvrQm"
+        "gdrive_id": "1N-vil1LujsZ4kjFhf6_Lhh81jWUqvrQm" 
     }
 }
 
